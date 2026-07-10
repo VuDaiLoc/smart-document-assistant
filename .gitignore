@@ -1,0 +1,45 @@
+# ── Build output ──────────────────────────────────────────────────────────
+/dist
+/out-tsc
+/tmp
+/bazel-out
+
+# ── Dependencies ───────────────────────────────────────────────────────────
+/node_modules
+
+# ── Angular cache ──────────────────────────────────────────────────────────
+/.angular
+
+# ── Amplify generated / secrets ────────────────────────────────────────────
+# amplify_outputs.json chứa endpoints thật — Amplify tự generate khi deploy
+amplify_outputs*.json
+amplifyconfiguration*
+# CDK artifacts (generated on deploy, không cần commit)
+.amplify/
+
+# ── Test output ────────────────────────────────────────────────────────────
+/coverage
+
+# ── Logs ───────────────────────────────────────────────────────────────────
+npm-debug.log*
+yarn-error.log*
+*.log
+
+# ── OS files ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE / Editor ───────────────────────────────────────────────────────────
+.idea/
+*.sublime-workspace
+.history/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/mcp.json
+
+# ── Misc ───────────────────────────────────────────────────────────────────
+.sass-cache/
+/connect.lock
+/typings
+__screenshots__/
