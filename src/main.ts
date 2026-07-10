@@ -1,3 +1,6 @@
+// Polyfill 'global' cho các thư viện Node.js chạy trong browser
+(window as any).global = window;
+
 import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
 import { App } from './app/app.component';
