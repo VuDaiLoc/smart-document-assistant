@@ -4,6 +4,7 @@ import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3
 import { TextractClient, StartDocumentTextDetectionCommand } from '@aws-sdk/client-textract';
 import mammoth from 'mammoth';
 import officeParser from 'officeparser';
+import pdfParse from 'pdf-parse';
 
 const ddbClient = new DynamoDBClient({});
 const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
@@ -109,9 +110,38 @@ export const handler = async (event: any) => {
       }
 
       if (['pdf', 'jpg', 'jpeg', 'png'].includes(extension)) {
-        // ── PDF / ẢNH: dùng Textract async OCR ──────────────────────────
-        // Lambda B sẽ nhận callback từ SNS khi Textract xong,
-        // lưu extractedText → status = text_extracted, rồi chờ user chọn mode.
+        // ── PDF: thử extract text trực tiếp trước (giữ nguyên Unicode/dấu tiếng Việt)
+        // Chỉ fallback Textract OCR khi PDF là scan (text quá ít)
+        if (extension === 'pdf') {
+          console.log(`Trying direct PDF text extraction for: ${key}`);
+          try {
+            const buffer = await downloadS3Object(bucketName, key);
+            const pdfData = await pdfParse(buffer);
+            const extractedText = pdfData.text?.trim() ?? '';
+
+            // Nếu extract được đủ text → lưu thẳng, không cần Textract
+            if (extractedText.length > 100) {
+              console.log(`PDF has native text (${extractedText.length} chars), skipping Textract.`);
+              if (extractedText.length > 300000) {
+                const identityId = key.split('/')[1];
+                const processedS3Key = `processed/${identityId}/${doc!.id}-text.txt`;
+                await s3Client.send(new PutObjectCommand({
+                  Bucket: storageBucketName, Key: processedS3Key,
+                  Body: extractedText, ContentType: 'text/plain; charset=utf-8',
+                }));
+                await updateDocument(key, 'text_extracted', { processedS3Key });
+              } else {
+                await updateDocument(key, 'text_extracted', { extractedText });
+              }
+              continue; // bỏ qua Textract
+            }
+            console.log(`PDF has little/no native text (${extractedText.length} chars), falling back to Textract OCR.`);
+          } catch (pdfErr) {
+            console.warn(`pdf-parse failed, falling back to Textract:`, pdfErr);
+          }
+        }
+
+        // ── PDF scan / ẢNH: dùng Textract async OCR ─────────────────────
         console.log(`Starting Textract async job for: ${key}`);
         const command = new StartDocumentTextDetectionCommand({
           DocumentLocation: { S3Object: { Bucket: bucketName, Name: key } },
@@ -129,14 +159,28 @@ export const handler = async (event: any) => {
 
       } else if (['docx', 'pptx', 'xlsx'].includes(extension)) {
         // ── DOCX / PPTX: parse local, lưu text → status = text_extracted ─
-        // Chờ user chọn analysis mode trong popup, rồi DynamoDB Stream trigger Lambda B
         console.log(`Parsing office file locally: ${key}`);
         const buffer = await downloadS3Object(bucketName, key);
 
         let extractedText = '';
         if (extension === 'docx') {
-          const result = await mammoth.extractRawText({ buffer });
-          extractedText = result.value;
+          // Dùng convertToHtml rồi strip tags để giữ cấu trúc heading/bullet
+          const result = await mammoth.convertToHtml({ buffer });
+          extractedText = result.value
+            .replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n$1\n')
+            .replace(/<li[^>]*>(.*?)<\/li>/gi, '\n• $1')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n')
+            .replace(/<\/tr>/gi, '\n')
+            .replace(/<\/td>/gi, '\t')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
         } else {
           extractedText = await officeParser.parseOffice(buffer) as any as string;
         }

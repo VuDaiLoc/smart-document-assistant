@@ -23,6 +23,7 @@
     "aws-amplify": "^6.18.0",
     "mammoth": "^1.12.0",
     "officeparser": "^7.2.3",
+    "pdf-parse": "^1.1.4",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
