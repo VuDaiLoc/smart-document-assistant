@@ -1443,7 +1443,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.submittingMode.set(true);
     try {
-      // Lưu analysisMode + set status = processing → DynamoDB Stream trigger Lambda B
+      // Gọi Lambda B Function URL để trigger AI analysis
+      // TODO: Lấy Function URL từ amplify_outputs và dùng signRequest để auth
+      // Tạm thời: update status + analysisMode và để polling tự động refresh
       await client.models.Document.update({
         id: doc.id,
         analysisMode: mode,
@@ -1457,6 +1459,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
       this.dismissAnalysisPrompt();
       this.showToast('Đang phân tích tài liệu...', 'info');
+      
+      // NOTE: Lambda B sẽ được trigger thủ công hoặc cần implement Function URL call
+      console.warn('[TODO] Call Lambda B Function URL with documentId + analysisMode');
     } catch (err: any) {
       console.error('Failed to submit analysis mode:', err);
       this.showToast('Không thể gửi yêu cầu phân tích.', 'error');

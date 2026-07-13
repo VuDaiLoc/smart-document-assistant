@@ -8,6 +8,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 
 const backend = defineBackend({
   auth,
@@ -209,22 +210,70 @@ const s3Policy = new iam.PolicyStatement({
 backend.lambdaATrigger.resources.lambda.addToRolePolicy(s3Policy);
 backend.lambdaBTextractResult.resources.lambda.addToRolePolicy(s3Policy);
 
-// ── LAMBDA B FUNCTION URL ──────────────────────────────────────────────────
-// Tạo Function URL cho Lambda B để frontend có thể gọi trực tiếp sau khi
-// user chọn analysis mode (thay vì dùng DynamoDB Stream trigger phức tạp).
-// AuthType = AWS_IAM: chỉ authenticated Cognito users mới gọi được.
-const lambdaBFnUrl = backend.lambdaBTextractResult.resources.lambda.addFunctionUrl({
-  authType: lambda.FunctionUrlAuthType.AWS_IAM,
-  cors: {
-    allowedOrigins: ['*'], // Production nên restrict theo domain thật
-    allowedMethods: [lambda.HttpMethod.POST],
-    allowedHeaders: ['content-type', 'authorization'],
-    maxAge: cdk.Duration.hours(1),
-  },
-});
+// ── DYNAMODB STREAM → LAMBDA B ─────────────────────────────────────────────
+// Enable DynamoDB Stream trên Document table để Lambda B tự động trigger khi
+// user update analysisMode + status = processing (sau khi chọn mode phân tích).
 
-// Export Function URL ra output để frontend dùng
-new cdk.CfnOutput(backend.stack, 'LambdaBFunctionUrl', {
-  value: lambdaBFnUrl.url,
-  description: 'Lambda B Function URL for triggering AI analysis',
-});
+// Access underlying nested stack của data để tìm CFN resources
+const dataStack = backend.data.resources.cfnResources.cfnGraphqlApi.stack;
+
+// Tìm tất cả CfnTable trong data nested stack
+const allTables = dataStack.node.findAll().filter(
+  (child) => child.node.id.includes('Table') && cdk.CfnResource.isCfnResource(child)
+);
+
+console.log('Found tables:', allTables.map(t => t.node.id));
+
+// Tìm Document table bằng cách check logical ID hoặc physical properties
+// Amplify Gen2 tạo table với pattern: amplifyDataModel<ModelName><Hash>
+const documentCfnTable = allTables.find((table) => {
+  const logicalId = (table as any).logicalId || '';
+  return logicalId.includes('Document') && !logicalId.includes('UserQuota');
+}) as cdk.CfnResource | undefined;
+
+if (documentCfnTable) {
+  console.log('Found Document table:', documentCfnTable.node.id);
+  
+  // Enable DynamoDB Stream
+  documentCfnTable.addPropertyOverride('StreamSpecification', {
+    StreamViewType: 'NEW_AND_OLD_IMAGES',
+  });
+
+  // Cấp quyền Lambda B đọc stream
+  backend.lambdaBTextractResult.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+    actions: [
+      'dynamodb:GetRecords',
+      'dynamodb:GetShardIterator', 
+      'dynamodb:DescribeStream',
+      'dynamodb:ListStreams',
+    ],
+    resources: [
+      `${documentTable.tableArn}/stream/*`,
+    ],
+  }));
+
+  // Thêm DynamoDB Stream event source
+  backend.lambdaBTextractResult.resources.lambda.addEventSource(
+    new lambdaEventSources.DynamoEventSource(documentTable as any, {
+      startingPosition: lambda.StartingPosition.LATEST,
+      batchSize: 1,
+      bisectBatchOnError: true,
+      retryAttempts: 2,
+      filters: [
+        lambda.FilterCriteria.filter({
+          eventName: lambda.FilterRule.isEqual('MODIFY'),
+          dynamodb: {
+            NewImage: {
+              status: { S: lambda.FilterRule.isEqual('processing') },
+              analysisMode: { S: lambda.FilterRule.exists() },
+            },
+          },
+        }),
+      ],
+    })
+  );
+  
+  console.log('DynamoDB Stream configured successfully');
+} else {
+  console.error('Document table CFN resource not found!');
+}

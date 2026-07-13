@@ -128,8 +128,8 @@ export const handler = async (event: any) => {
         });
 
       } else if (['docx', 'pptx', 'xlsx'].includes(extension)) {
-        // ── DOCX / PPTX: parse local, không gọi AI ──────────────────────
-        // Lưu extractedText → status = text_extracted để user chọn mode.
+        // ── DOCX / PPTX: parse local, lưu text → status = text_extracted ─
+        // Chờ user chọn analysis mode trong popup, rồi DynamoDB Stream trigger Lambda B
         console.log(`Parsing office file locally: ${key}`);
         const buffer = await downloadS3Object(bucketName, key);
 

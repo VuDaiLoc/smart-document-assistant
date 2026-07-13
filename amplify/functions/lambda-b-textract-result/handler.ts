@@ -206,79 +206,55 @@ async function handleSnsEvent(event: any) {
   }
 }
 
-// ── PATH B: HTTP POST từ frontend (Function URL) ────────────────────────────
-// Frontend gọi sau khi user chọn analysisMode trong popup.
-// Body: { "documentId": "xxx", "analysisMode": "summary_detailed" }
-async function handleHttpRequest(event: any) {
-  console.log('[HTTP] Processing direct invocation from frontend');
-  
-  try {
-    const body = JSON.parse(event.body ?? '{}');
-    const { documentId, analysisMode } = body;
+// ── PATH B: DynamoDB Stream — user đã chọn analysisMode ─────────────────────
+async function handleDynamoStreamEvent(event: any) {
+  for (const record of event.Records) {
+    if (record.eventName !== 'MODIFY') continue;
 
-    if (!documentId || !analysisMode) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Missing documentId or analysisMode' }),
-      };
-    }
+    const newImage = record.dynamodb?.NewImage;
+    if (!newImage) continue;
 
-    console.log(`[HTTP] Analyzing document ${documentId} with mode: ${analysisMode}`);
+    const id = newImage.id?.S;
+    const status = newImage.status?.S;
+    const analysisMode = newImage.analysisMode?.S;
 
-    const doc = await getDocumentById(documentId);
-    if (!doc) {
-      return {
-        statusCode: 404,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Document not found' }),
-      };
-    }
+    // Filter: chỉ xử lý khi status=processing và có analysisMode
+    if (status !== 'processing' || !analysisMode) continue;
 
-    // Cập nhật status → processing trước khi bắt đầu
-    await updateDocument(documentId, 'processing', { analysisMode });
+    console.log(`[DDB Stream] Analyzing document ${id} with mode: ${analysisMode}`);
 
-    // Lấy text từ DB hoặc từ S3 nếu quá dài
-    let text = doc.extractedText ?? '';
-    if (!text && doc.processedS3Key) {
-      console.log(`[HTTP] Loading text from S3: ${doc.processedS3Key}`);
-      text = await readS3Text(doc.processedS3Key);
-    }
-    if (!text) {
-      await updateDocument(documentId, 'error');
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'No extracted text available' }),
-      };
-    }
+    try {
+      const doc = await getDocumentById(id);
+      if (!doc) { 
+        console.error(`Document ${id} not found`); 
+        continue; 
+      }
 
-    console.log(`[HTTP] Calling AI (mode=${analysisMode}, textLen=${text.length})...`);
-    const aiResult = await analyzeWithAI(text, analysisMode);
+      // Lấy text từ DB hoặc S3
+      let text = doc.extractedText ?? '';
+      if (!text && doc.processedS3Key) {
+        console.log(`[DDB Stream] Loading text from S3: ${doc.processedS3Key}`);
+        text = await readS3Text(doc.processedS3Key);
+      }
+      if (!text) {
+        console.error(`[DDB Stream] No text available for document ${id}`);
+        await updateDocument(id, 'error');
+        continue;
+      }
 
-    await updateDocument(documentId, 'done', {
-      summary: aiResult.summary,
-      category: aiResult.category,
-    });
+      console.log(`[DDB Stream] Calling AI (mode=${analysisMode}, textLen=${text.length})...`);
+      const aiResult = await analyzeWithAI(text, analysisMode);
 
-    console.log(`[HTTP] Document ${documentId} analysis complete.`);
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        success: true, 
+      await updateDocument(id, 'done', {
         summary: aiResult.summary,
         category: aiResult.category,
-      }),
-    };
+      });
 
-  } catch (error: any) {
-    console.error('[HTTP] Error:', error);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: error.message }),
-    };
+      console.log(`[DDB Stream] Document ${id} analysis complete.`);
+    } catch (error: any) {
+      console.error(`[DDB Stream] Error analyzing document ${id}:`, error);
+      await updateDocument(id, 'error');
+    }
   }
 }
 
@@ -286,19 +262,20 @@ async function handleHttpRequest(event: any) {
 export const handler = async (event: any) => {
   console.log('Lambda B received event:', JSON.stringify(event, null, 2));
 
-  // Phân biệt nguồn event: SNS hay HTTP (Function URL)
+  // Phân biệt nguồn event: SNS hay DynamoDB Stream
   if (event.Records) {
     const firstRecord = event.Records[0];
+    
     if (firstRecord.EventSource === 'aws:sns' || firstRecord.eventSource === 'aws:sns') {
-      // SNS event từ Textract callback → extract text
+      // SNS event từ Textract callback → extract text → status=text_extracted
       await handleSnsEvent(event);
-      return { statusCode: 200, body: 'SNS processed' };
+    } else if (firstRecord.eventSource === 'aws:dynamodb') {
+      // DynamoDB Stream event → user đã chọn mode → gọi AI
+      await handleDynamoStreamEvent(event);
+    } else {
+      console.warn('Unknown event source:', firstRecord.EventSource ?? firstRecord.eventSource);
     }
-  } else if (event.requestContext?.http) {
-    // HTTP request từ frontend qua Function URL → gọi AI analysis
-    return await handleHttpRequest(event);
+  } else {
+    console.warn('Event has no Records array');
   }
-
-  console.warn('Unknown event type');
-  return { statusCode: 400, body: 'Unknown event type' };
 };

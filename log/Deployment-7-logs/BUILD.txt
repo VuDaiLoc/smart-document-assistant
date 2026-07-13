@@ -1,0 +1,184 @@
+2026-07-13T03:04:20.478Z [INFO]: # Build environment configured with Standard build compute type: 8GiB Memory, 4vCPUs, 128GB Disk Space
+2026-07-13T03:04:21.360Z [INFO]: # Cloning repository: git@github.com:VuDaiLoc/smart-document-assistant.git
+2026-07-13T03:04:22.163Z [INFO]: 
+2026-07-13T03:04:22.164Z [INFO]: Cloning into 'smart-document-assistant'...
+2026-07-13T03:04:22.164Z [INFO]: # Switching to commit: 07bb4b3bb0c4c2d760f7a05e60985a5095183c04
+2026-07-13T03:04:22.181Z [INFO]: Note: switching to '07bb4b3bb0c4c2d760f7a05e60985a5095183c04'.
+                                 You are in 'detached HEAD' state. You can look around, make experimental
+                                 changes and commit them, and you can discard any commits you make in this
+                                 state without impacting any branches by switching back to a branch.
+                                 If you want to create a new branch to retain commits you create, you may
+                                 do so (now or later) by using -c with the switch command. Example:
+                                 git switch -c <new-branch-name>
+                                 Or undo this operation with:
+                                 git switch -
+                                 Turn off this advice by setting config variable advice.detachedHead to false
+                                 HEAD is now at 07bb4b3 Update Web: Chinh sua lai cach hoat dong va giao dien
+2026-07-13T03:04:22.204Z [INFO]: Successfully cleaned up Git credentials
+2026-07-13T03:04:22.204Z [INFO]: # Checking for Git submodules at: /codebuild/output/src1407297002/src/smart-document-assistant/.gitmodules
+2026-07-13T03:04:22.213Z [INFO]: # Retrieving environment cache...
+2026-07-13T03:04:22.307Z [INFO]: # Retrieved environment cache
+2026-07-13T03:04:22.307Z [INFO]: ---- Setting Up SSM Secrets ----
+2026-07-13T03:04:22.307Z [INFO]: SSM params {"Path":"/amplify/d149j5w6r2swxd/main/","WithDecryption":true}
+2026-07-13T03:04:22.596Z [INFO]: # No package override configuration found.
+2026-07-13T03:04:22.599Z [INFO]: # Retrieving cache...
+2026-07-13T03:04:38.936Z [INFO]: # Extracting cache...
+2026-07-13T03:05:17.950Z [INFO]: # Extraction completed
+2026-07-13T03:05:18.212Z [INFO]: # Retrieved cache
+2026-07-13T03:05:21.591Z [INFO]: ## Starting Backend Build
+                                 # Starting phase: build
+                                 # Executing command: npm ci --cache .npm --prefer-offline
+2026-07-13T03:05:39.178Z [WARNING]: npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular-devkit/architect@0.2200.5',
+                                    npm warn EBADENGINE   required: {
+                                    npm warn EBADENGINE     node: '^22.22.3 || ^24.15.0 || >=26.0.0',
+                                    npm warn EBADENGINE     npm: '^6.11.0 || ^7.5.6 || >=8.0.0',
+                                    npm warn EBADENGINE     yarn: '>= 1.13.0'
+                                    npm warn EBADENGINE   },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+2026-07-13T03:05:39.183Z [WARNING]: npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular-devkit/core@22.0.5',
+                                    npm warn EBADENGINE   required: {
+                                    npm warn EBADENGINE     node: '^22.22.3 || ^24.15.0 || >=26.0.0',
+                                    npm warn EBADENGINE     npm: '^6.11.0 || ^7.5.6 || >=8.0.0',
+                                    npm warn EBADENGINE     yarn: '>= 1.13.0'
+                                    npm warn EBADENGINE   },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+                                    npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular-devkit/schematics@22.0.5',
+                                    npm warn EBADENGINE   required: {
+                                    npm warn EBADENGINE     node: '^22.22.3 || ^24.15.0 || >=26.0.0',
+                                    npm warn EBADENGINE     npm: '^6.11.0 || ^7.5.6 || >=8.0.0',
+                                    npm warn EBADENGINE     yarn: '>= 1.13.0'
+                                    npm warn EBADENGINE   },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+                                    npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular/build@22.0.5',
+                                    npm warn EBADENGINE   required: {
+                                    npm warn EBADENGINE     node: '^22.22.3 || ^24.15.0 || >=26.0.0',
+                                    npm warn EBADENGINE     npm: '^6.11.0 || ^7.5.6 || >=8.0.0',
+                                    npm warn EBADENGINE     yarn: '>= 1.13.0'
+                                    npm warn EBADENGINE   },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+                                    npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular/cli@22.0.5',
+                                    npm warn EBADENGINE   required: {
+                                    npm warn EBADENGINE     node: '^22.22.3 || ^24.15.0 || >=26.0.0',
+                                    npm warn EBADENGINE     npm: '^6.11.0 || ^7.5.6 || >=8.0.0',
+                                    npm warn EBADENGINE     yarn: '>= 1.13.0'
+                                    npm warn EBADENGINE   },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+                                    npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular/common@22.0.6',
+                                    npm warn EBADENGINE   required: { node: '^22.22.3 || ^24.15.0 || >=26.0.0' },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+                                    npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular/compiler@22.0.6',
+                                    npm warn EBADENGINE   required: { node: '^22.22.3 || ^24.15.0 || >=26.0.0' },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+                                    npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular/compiler-cli@22.0.6',
+                                    npm warn EBADENGINE   required: { node: '^22.22.3 || ^24.15.0 || >=26.0.0' },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+                                    npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular/core@22.0.6',
+                                    npm warn EBADENGINE   required: { node: '^22.22.3 || ^24.15.0 || >=26.0.0' },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+                                    npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular/forms@22.0.6',
+                                    npm warn EBADENGINE   required: { node: '^22.22.3 || ^24.15.0 || >=26.0.0' },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+                                    npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular/platform-browser@22.0.6',
+                                    npm warn EBADENGINE   required: { node: '^22.22.3 || ^24.15.0 || >=26.0.0' },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+                                    npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@angular/router@22.0.6',
+                                    npm warn EBADENGINE   required: { node: '^22.22.3 || ^24.15.0 || >=26.0.0' },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+2026-07-13T03:05:39.191Z [WARNING]: npm warn EBADENGINE Unsupported engine {
+                                    npm warn EBADENGINE   package: '@schematics/angular@22.0.5',
+                                    npm warn EBADENGINE   required: {
+                                    npm warn EBADENGINE     node: '^22.22.3 || ^24.15.0 || >=26.0.0',
+                                    npm warn EBADENGINE     npm: '^6.11.0 || ^7.5.6 || >=8.0.0',
+                                    npm warn EBADENGINE     yarn: '>= 1.13.0'
+                                    npm warn EBADENGINE   },
+                                    npm warn EBADENGINE   current: { node: 'v22.18.0', npm: '10.9.3' }
+                                    npm warn EBADENGINE }
+2026-07-13T03:07:02.358Z [WARNING]: npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+2026-07-13T03:07:02.439Z [WARNING]: npm warn deprecated @babel/plugin-proposal-class-properties@7.18.6: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-class-properties instead.
+2026-07-13T03:07:02.572Z [WARNING]: npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+2026-07-13T03:07:02.739Z [WARNING]: npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+2026-07-13T03:07:02.748Z [WARNING]: npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+2026-07-13T03:07:02.772Z [WARNING]: npm warn deprecated @babel/plugin-proposal-object-rest-spread@7.20.7: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-object-rest-spread instead.
+2026-07-13T03:07:03.655Z [WARNING]: npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+2026-07-13T03:07:04.770Z [WARNING]: npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+2026-07-13T03:07:04.771Z [WARNING]: npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+2026-07-13T03:07:04.804Z [WARNING]: npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+2026-07-13T03:07:11.447Z [WARNING]: npm warn deprecated core-js@2.6.12: core-js@<3.23.3 is no longer maintained and not recommended for usage due to the number of issues. Because of the V8 engine whims, feature detection in old core-js versions could cause a slowdown up to 100x even if nothing is polyfilled. Some versions have web compatibility issues. Please, upgrade your dependencies to the actual version of core-js.
+2026-07-13T03:07:13.631Z [INFO]: added 1430 packages, and audited 2266 packages in 2m
+2026-07-13T03:07:13.631Z [INFO]: 282 packages are looking for funding
+                                 run `npm fund` for details
+2026-07-13T03:07:14.020Z [INFO]: 52 vulnerabilities (6 low, 23 moderate, 21 high, 2 critical)
+                                 To address issues that do not require attention, run:
+                                 npm audit fix
+                                 To address all issues possible (including breaking changes), run:
+                                 npm audit fix --force
+                                 Some issues need review, and may require choosing
+                                 a different dependency.
+                                 Run `npm audit` for details.
+2026-07-13T03:07:14.084Z [INFO]: # Executing command: npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
+2026-07-13T03:07:18.470Z [INFO]: 3:07:18 AM Synthesizing backend...
+2026-07-13T03:07:18.475Z [INFO]: 
+2026-07-13T03:07:19.947Z [WARNING]: Bundling asset amplify-d149j5w6r2swxd-main-branch-2272cc02cc/AmplifyBranchLinker/CustomResourceLambda/Code/Stage...
+2026-07-13T03:07:20.319Z [WARNING]: ...41d70f3cb5f0feb814ab3e313e59ebad660ee7bfa96e5-building/index.js  1003.9kb
+                                    ⚡ Done in 84ms
+2026-07-13T03:07:20.705Z [WARNING]: WARNING: owners may reassign ownership for the following model(s) and role(s): Document: [owner], UserQuota: [owner]. If this is not intentional, you may want to apply field-level authorization rules to these fields. To read more: https://docs.amplify.aws/cli/graphql/authorization-rules/#per-user--owner-based-data-access.
+2026-07-13T03:07:20.769Z [WARNING]: Bundling asset amplify-d149j5w6r2swxd-main-branch-2272cc02cc/function/lambda-a-trigger-lambda/Code/Stage...
+2026-07-13T03:07:22.139Z [WARNING]: Bundling asset amplify-d149j5w6r2swxd-main-branch-2272cc02cc/function/lambda-b-textract-result-lambda/Code/Stage...
+2026-07-13T03:07:22.600Z [INFO]: 3:07:22 AM ✔ Backend synthesized in 4.55 seconds
+2026-07-13T03:07:22.601Z [INFO]: 3:07:22 AM Running type checks...
+2026-07-13T03:07:33.741Z [INFO]: 3:07:33 AM ✔ Type checks completed in 11.14 seconds
+2026-07-13T03:07:33.891Z [INFO]: 
+2026-07-13T03:07:33.891Z [INFO]: [BackendBuildError] Unable to deploy due to CDK Assembly Error
+                                 ∟ Caused by: [AssemblyError] Assembly builder failed
+                                 ∟ Caused by: [TypeError] Cannot read properties of undefined (reading 'addPropertyOverride')
+                                 Resolution: Check the Caused by error and fix any issues in your backend code
+2026-07-13T03:07:33.891Z [WARNING]: ampx pipeline-deploy
+                                    Command to deploy backends in a custom CI/CD pipeline. This command is not inten
+                                    ded to be used locally.
+                                    Options:
+                                    --debug            Print debug logs to the console
+                                    [boolean] [default: false]
+                                    --branch           Name of the git branch being deployed
+                                    [string] [required]
+                                    --app-id           The app id of the target Amplify app[string] [required]
+                                    --outputs-out-dir  A path to directory where amplify_outputs is written. I
+                                    f not provided defaults to current process working dire
+                                    ctory.                                         [string]
+                                    --outputs-version  Version of the configuration. Version 0 represents clas
+                                    sic amplify-cli config file amplify-configuration and 1
+                                    represents newer config file amplify_outputs
+                                    [string] [choices: "0", "1", "1.1", "1.2", "1.3", "1.4"] [default: "1.4"]
+                                    --outputs-format   amplify_outputs file format
+                                    [string] [choices: "mjs", "json", "json-mobile", "ts", "dart"]
+                                    -h, --help             Show help                                     [boolean]
+2026-07-13T03:07:33.960Z [ERROR]: !!! Build failed
+2026-07-13T03:07:33.960Z [ERROR]: !!! Error: Command failed with exit code 1
+2026-07-13T03:07:33.960Z [INFO]: # Starting environment caching...
+2026-07-13T03:07:33.960Z [INFO]: # Uploading environment cache artifact...
+2026-07-13T03:07:34.045Z [INFO]: # Uploaded environment cache artifact
+2026-07-13T03:07:34.045Z [INFO]: # Environment caching completed
+
