@@ -143,7 +143,7 @@ type AuthStep = 'SIGN_IN' | 'SIGN_UP' | 'CONFIRM_SIGN_UP' | 'RESET_PASSWORD' | '
             <a href="javascript:void(0)" (click)="setStep('RESET_PASSWORD')">Quên mật khẩu?</a>
           </div>
 
-          <button type="submit" class="submit-btn" [disabled]="loading() || !authForm.form.valid">
+          <button type="submit" class="submit-btn" [disabled]="loading() || !isFormReady()">
             <span *ngIf="loading()" class="btn-spinner"></span>
             <span>{{ getSubmitBtnText() }}</span>
           </button>
@@ -452,6 +452,22 @@ export class AuthComponent {
       case 'CONFIRM_SIGN_UP': return 'Xác nhận';
       case 'RESET_PASSWORD': return 'Gửi mã xác thực';
       case 'CONFIRM_RESET_PASSWORD': return 'Đặt lại mật khẩu';
+    }
+  }
+
+  // Validate manually theo từng step vì Angular form bị confuse khi input bị ẩn/hiện
+  isFormReady(): boolean {
+    switch (this.step()) {
+      case 'SIGN_IN':
+        return !!this.email.trim() && this.password.length >= 8;
+      case 'SIGN_UP':
+        return !!this.email.trim() && this.password.length >= 8 && !!this.confirmPassword;
+      case 'CONFIRM_SIGN_UP':
+        return this.code.length === 6;
+      case 'RESET_PASSWORD':
+        return !!this.email.trim();
+      case 'CONFIRM_RESET_PASSWORD':
+        return this.code.length === 6 && this.password.length >= 8;
     }
   }
 
