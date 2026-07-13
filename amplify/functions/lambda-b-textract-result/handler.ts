@@ -23,6 +23,7 @@ function buildPrompt(text: string, mode: string): string {
     summary_short: `Tóm tắt ngắn gọn đoạn văn bản sau trong 2-3 câu, chỉ nêu ý chính nhất. Sau đó phân loại tài liệu.`,
     key_points: `Trích xuất 3-5 điểm chính quan trọng nhất từ văn bản sau dưới dạng danh sách gạch đầu dòng. Gộp tất cả vào trường "summary". Sau đó phân loại tài liệu.`,
     classify_only: `Đọc văn bản sau và chỉ cần xác định phân loại tài liệu. Đặt "summary" là một câu mô tả ngắn về tài liệu.`,
+    extract_text: `Phân loại tài liệu dựa trên nội dung văn bản sau. Chỉ trả về category.`,
   };
 
   const instruction = modeInstructions[mode] ?? modeInstructions['summary_detailed'];
@@ -242,6 +243,20 @@ async function handleDynamoStreamEvent(event: any) {
         continue;
       }
 
+      // Mode đặc biệt: extract_text - không gọi AI, chỉ lưu text vào summary
+      if (analysisMode === 'extract_text') {
+        console.log(`[DDB Stream] Extract text only mode - skipping AI`);
+        // Gọi AI chỉ để classify (prompt ngắn hơn)
+        const aiResult = await analyzeWithAI(text, analysisMode);
+        await updateDocument(id, 'done', {
+          summary: text.slice(0, 50000), // Lưu text vào summary (giới hạn 50k chars)
+          category: aiResult.category,
+        });
+        console.log(`[DDB Stream] Document ${id} extract text complete.`);
+        continue;
+      }
+
+      // Các mode khác: gọi AI để tóm tắt
       console.log(`[DDB Stream] Calling AI (mode=${analysisMode}, textLen=${text.length})...`);
       const aiResult = await analyzeWithAI(text, analysisMode);
 
