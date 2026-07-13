@@ -9,6 +9,7 @@ const schema = a.schema({
       fileSize: a.integer().required(),
       s3Key: a.string().required(),
       status: a.enum(['uploaded', 'processing', 'text_extracted', 'done', 'error']),
+      analysisMode: a.string(), // summary_detailed | summary_short | key_points | classify_only
       summary: a.string(),
       category: a.string(),
       textractJobId: a.string(),

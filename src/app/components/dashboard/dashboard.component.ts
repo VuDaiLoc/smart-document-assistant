@@ -243,6 +243,14 @@ interface ConfirmState {
                 </td>
                 <td class="td-dim">{{ doc.createdAt | date:'dd/MM/yy HH:mm' }}</td>
                 <td class="td-actions" (click)="$event.stopPropagation()">
+                  <!-- Nút phân tích: hiện khi text đã extracted, chưa chọn mode -->
+                  <button *ngIf="doc.status === 'text_extracted' && !doc.analysisMode"
+                    (click)="showAnalysisPrompt(doc)"
+                    class="row-btn row-btn-analyze"
+                    title="Chọn chế độ phân tích" aria-label="Phân tích">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                  </button>
+                  <!-- Nút retry: hiện khi error -->
                   <button *ngIf="doc.status === 'error'"
                     (click)="onRetry(doc)"
                     class="row-btn row-btn-retry"
@@ -319,6 +327,13 @@ interface ConfirmState {
             <div class="msec-label">Tóm tắt (AI)</div>
             <div *ngIf="previewDoc()?.status === 'processing'" class="skeleton skeleton-text-sm"></div>
             <p *ngIf="previewDoc()?.status === 'uploaded'" class="msec-pending">Đang chuẩn bị xử lý...</p>
+            <div *ngIf="previewDoc()?.status === 'text_extracted'" class="text-extracted-prompt">
+              <p class="msec-pending">Văn bản đã được trích xuất. Chọn chế độ phân tích để tiếp tục.</p>
+              <button class="retry-btn" style="margin-top:0.5rem" (click)="showAnalysisPrompt(previewDoc()!); closePreview()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                Phân tích ngay
+              </button>
+            </div>
             <div *ngIf="previewDoc()?.status === 'error'" class="error-block">
               <div class="error-block-icon">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -628,7 +643,7 @@ interface ConfirmState {
     }
     .status-dot.status-uploaded  { background: var(--info); }
     .status-dot.status-processing { background: var(--warning); animation: pulse 1.4s infinite; }
-    .status-dot.status-text_extracted { background: var(--info); }
+    .status-dot.status-text_extracted { background: var(--primary); animation: pulse 1.4s infinite; }
     .status-dot.status-done  { background: var(--success); }
     .status-dot.status-error { background: var(--error); }
     @keyframes pulse {
@@ -652,6 +667,8 @@ interface ConfirmState {
     .row-btn-retry { color: var(--warning); border-color: rgba(245,158,11,0.4); }
     .row-btn-retry:hover:not(:disabled) { color: var(--warning); border-color: var(--warning); background: var(--warning-bg); }
     .row-btn-retry:disabled { opacity: 0.7; cursor: not-allowed; }
+    .row-btn-analyze { color: var(--primary); border-color: rgba(99,102,241,0.4); }
+    .row-btn-analyze:hover { color: var(--primary); border-color: var(--primary); background: var(--primary-glow); }
     .row-spinner {
       display: inline-block; width: 13px; height: 13px;
       border: 2px solid rgba(245,158,11,0.3); border-radius: 50%;
@@ -962,6 +979,84 @@ interface ConfirmState {
       box-shadow: var(--shadow-md), var(--shadow-glow);
     }
     .name-prompt-save:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* ANALYSIS MODE POPUP */
+    .mode-bg {
+      position: fixed; inset: 0; z-index: 310;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem;
+    }
+    .mode-card {
+      width: 100%; max-width: 480px;
+      background: var(--surface-solid);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-lg);
+      padding: 1.75rem 1.75rem 1.5rem;
+      box-shadow: var(--shadow-lg);
+      animation: fadeUp 0.28s cubic-bezier(0.16,1,0.3,1);
+    }
+    .mode-header {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding-bottom: 1.25rem; border-bottom: 1px solid var(--border-color);
+      margin-bottom: 1.25rem;
+    }
+    .mode-file-icon {
+      width: 40px; height: 40px; border-radius: 8px;
+      background: var(--primary-glow); border: 1px solid rgba(99,102,241,0.2);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--primary); flex-shrink: 0;
+    }
+    .mode-file-info { display: flex; flex-direction: column; min-width: 0; }
+    .mode-file-name {
+      font-size: 0.9rem; font-weight: 600; color: var(--text-primary);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .mode-file-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.1rem; }
+    .mode-title {
+      font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em;
+      margin-bottom: 0.35rem;
+    }
+    .mode-sub { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem; }
+    .mode-options { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .mode-option {
+      display: flex; align-items: center; gap: 0.875rem;
+      padding: 0.875rem 1rem; border-radius: var(--border-radius-sm);
+      border: 1.5px solid var(--border-color); background: none;
+      cursor: pointer; text-align: left; width: 100%;
+      transition: border-color 0.15s, background 0.15s;
+      font-family: var(--font-sans);
+    }
+    .mode-option:hover { border-color: var(--primary); background: var(--primary-glow); }
+    .mode-option-selected { border-color: var(--primary) !important; background: var(--primary-glow) !important; }
+    .mode-option-icon { font-size: 1.35rem; flex-shrink: 0; width: 28px; text-align: center; }
+    .mode-option-body { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+    .mode-option-label { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+    .mode-option-desc { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.1rem; }
+    .mode-option-check { color: var(--primary); flex-shrink: 0; }
+    .mode-actions {
+      display: flex; gap: 0.75rem; justify-content: flex-end;
+      padding-top: 1rem; border-top: 1px solid var(--border-color);
+    }
+    .mode-cancel {
+      padding: 0.6rem 1.1rem; font-size: 0.875rem; font-weight: 500;
+      font-family: var(--font-sans); color: var(--text-muted);
+      background: none; border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-sm); cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .mode-cancel:hover { color: var(--text-primary); border-color: var(--border-hover); }
+    .mode-confirm {
+      padding: 0.6rem 1.4rem; font-size: 0.875rem; font-weight: 600;
+      font-family: var(--font-sans); color: #fff;
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      border: none; border-radius: var(--border-radius-sm); cursor: pointer;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      transition: filter 0.15s, box-shadow 0.15s;
+    }
+    .mode-confirm:hover:not(:disabled) { filter: brightness(1.08); box-shadow: var(--shadow-md), var(--shadow-glow); }
+    .mode-confirm:disabled { opacity: 0.55; cursor: not-allowed; }
   `]
 })
 export class DashboardComponent implements OnInit, OnDestroy {
@@ -986,6 +1081,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   retryingId = signal<string | null>(null);
 
+  // Analysis mode popup
+  analysisDoc = signal<any | null>(null);
+  selectedMode = signal<string>('');
+  submittingMode = signal<boolean>(false);
+
+  readonly analysisOptions = [
+    { value: 'summary_detailed', icon: '📋', label: 'Tóm tắt chi tiết', desc: 'Tóm tắt đầy đủ 6–10 câu, bao gồm các ý chính và kết luận' },
+    { value: 'summary_short',    icon: '⚡', label: 'Tóm tắt ngắn gọn', desc: 'Tóm tắt nhanh 2–3 câu, chỉ nêu điểm quan trọng nhất' },
+    { value: 'key_points',       icon: '🔑', label: 'Trích xuất điểm chính', desc: 'Liệt kê 3–5 điểm chính dưới dạng danh sách gạch đầu dòng' },
+    { value: 'classify_only',    icon: '🏷️', label: 'Chỉ phân loại', desc: 'Xác định loại tài liệu: Hợp đồng, Hóa đơn, Báo cáo hoặc Khác' },
+  ];
+
   // Search + Filter
   searchQuery = '';
   activeFilter = signal<string>('all');
@@ -996,6 +1103,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { label: 'Hóa đơn', value: 'Hóa đơn' },
     { label: 'Báo cáo', value: 'Báo cáo' },
     { label: 'Khác', value: 'Khác' },
+    { label: 'Chờ phân tích', value: '__text_extracted' },
     { label: 'Đang xử lý', value: '__processing' },
     { label: 'Lỗi', value: '__error' },
   ];
@@ -1006,9 +1114,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.documents().filter(doc => {
       const matchSearch = !q || doc.fileName?.toLowerCase().includes(q);
       const matchFilter =
-        f === 'all' ? true :
-        f === '__processing' ? (doc.status === 'processing' || doc.status === 'uploaded') :
-        f === '__error' ? doc.status === 'error' :
+        f === 'all'              ? true :
+        f === '__processing'     ? (doc.status === 'processing' || doc.status === 'uploaded') :
+        f === '__error'          ? doc.status === 'error' :
+        f === '__text_extracted' ? (doc.status === 'text_extracted' && !doc.analysisMode) :
         doc.category === f;
       return matchSearch && matchFilter;
     });
@@ -1057,8 +1166,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   async pollPendingDocuments() {
     const current = this.documents();
-    const hasPending = current.some(d => d.status === 'uploaded' || d.status === 'processing');
-    if (!hasPending) return;
+    const hasPending = current.some(d =>
+      d.status === 'uploaded' || d.status === 'processing'
+    );
+    if (!hasPending) {
+      // Kiểm tra xem có document text_extracted chưa được hỏi mode chưa
+      const needsMode = current.find(d =>
+        d.status === 'text_extracted' && !d.analysisMode && !this.analysisDoc()
+      );
+      if (needsMode) {
+        this.ngZone.run(() => this.showAnalysisPrompt(needsMode));
+      }
+      return;
+    }
     try {
       const response = await (client.models.Document as any).list({ limit: 10 });
       const latest: any[] = response.data || [];
@@ -1305,6 +1425,46 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.previewDoc.set(null); this.previewFileUrl.set(null); this.previewFileSafeUrl.set(null);
   }
 
+  // ── ANALYSIS MODE ──────────────────────────────────────────────────────────
+  showAnalysisPrompt(doc: any) {
+    this.analysisDoc.set(doc);
+    this.selectedMode.set('summary_detailed'); // default
+  }
+
+  dismissAnalysisPrompt() {
+    this.analysisDoc.set(null);
+    this.selectedMode.set('');
+  }
+
+  async confirmAnalysisMode() {
+    const doc = this.analysisDoc();
+    const mode = this.selectedMode();
+    if (!doc || !mode) return;
+
+    this.submittingMode.set(true);
+    try {
+      // Lưu analysisMode + set status = processing → DynamoDB Stream trigger Lambda B
+      await client.models.Document.update({
+        id: doc.id,
+        analysisMode: mode,
+        status: 'processing',
+      });
+
+      // Cập nhật local state ngay
+      this.documents.set(this.documents().map(d =>
+        d.id === doc.id ? { ...d, analysisMode: mode, status: 'processing' } : d
+      ));
+
+      this.dismissAnalysisPrompt();
+      this.showToast('Đang phân tích tài liệu...', 'info');
+    } catch (err: any) {
+      console.error('Failed to submit analysis mode:', err);
+      this.showToast('Không thể gửi yêu cầu phân tích.', 'error');
+    } finally {
+      this.submittingMode.set(false);
+    }
+  }
+
   isImageFile(type?: string): boolean {
     if (!type) return false;
     return ['jpg', 'png', 'jpeg'].includes(type.toLowerCase());
@@ -1322,7 +1482,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     switch (status) {
       case 'uploaded': return 'Đã tải lên';
       case 'processing': return 'Đang xử lý';
-      case 'text_extracted': return 'Đã trích xuất';
+      case 'text_extracted': return 'Chờ phân tích';
       case 'done': return 'Đã phân tích';
       case 'error': return 'Lỗi';
       default: return status;

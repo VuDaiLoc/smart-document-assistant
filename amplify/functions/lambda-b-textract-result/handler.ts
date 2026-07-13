@@ -1,6 +1,6 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { DynamoDBDocumentClient, QueryCommand, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { TextractClient, GetDocumentTextDetectionCommand } from '@aws-sdk/client-textract';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 
@@ -14,70 +14,36 @@ const documentTableName = process.env.DOCUMENT_TABLE_NAME;
 const storageBucketName = process.env.STORAGE_BUCKET_NAME;
 const openrouterApiKey = process.env.OPENROUTER_API_KEY;
 
-// Tìm tài liệu theo textractJobId (GSI)
-async function getDocumentByJobId(jobId: string) {
-  const command = new QueryCommand({
-    TableName: documentTableName,
-    IndexName: 'textractJobId-index',
-    KeyConditionExpression: 'textractJobId = :jobId',
-    ExpressionAttributeValues: {
-      ':jobId': jobId,
-    },
-  });
-  const response = await ddbDocClient.send(command);
-  return response.Items && response.Items.length > 0 ? response.Items[0] : null;
-}
+// ── PROMPT BUILDER ──────────────────────────────────────────────────────────
+function buildPrompt(text: string, mode: string): string {
+  const truncated = text.slice(0, 10000);
 
-// Cập nhật tài liệu
-async function updateDocument(id: string, status: string, extraAttrs: Record<string, any> = {}) {
-  const updateExpressionParts = ['#status = :status'];
-  const expressionAttributeNames: Record<string, string> = { '#status': 'status' };
-  const expressionAttributeValues: Record<string, any> = { ':status': status };
+  const modeInstructions: Record<string, string> = {
+    summary_detailed: `Tóm tắt chi tiết đoạn văn bản sau trong 6-10 câu, bao gồm các ý chính, chi tiết quan trọng và kết luận. Sau đó phân loại tài liệu.`,
+    summary_short: `Tóm tắt ngắn gọn đoạn văn bản sau trong 2-3 câu, chỉ nêu ý chính nhất. Sau đó phân loại tài liệu.`,
+    key_points: `Trích xuất 3-5 điểm chính quan trọng nhất từ văn bản sau dưới dạng danh sách gạch đầu dòng. Gộp tất cả vào trường "summary". Sau đó phân loại tài liệu.`,
+    classify_only: `Đọc văn bản sau và chỉ cần xác định phân loại tài liệu. Đặt "summary" là một câu mô tả ngắn về tài liệu.`,
+  };
 
-  for (const [k, v] of Object.entries(extraAttrs)) {
-    const attrName = `#${k}`;
-    const attrVal = `:${k}`;
-    updateExpressionParts.push(`${attrName} = ${attrVal}`);
-    expressionAttributeNames[attrName] = k;
-    expressionAttributeValues[attrVal] = v;
-  }
+  const instruction = modeInstructions[mode] ?? modeInstructions['summary_detailed'];
 
-  const command = new UpdateCommand({
-    TableName: documentTableName,
-    Key: { id },
-    UpdateExpression: `SET ${updateExpressionParts.join(', ')}`,
-    ExpressionAttributeNames: expressionAttributeNames,
-    ExpressionAttributeValues: expressionAttributeValues,
-  });
+  return `${instruction}
 
-  await ddbDocClient.send(command);
-}
-
-// Gọi OpenRouter API với multi-model fallback
-async function summarizeAndClassifyWithOpenRouter(text: string, apiKey: string): Promise<{ summary: string; category: string }> {
-  const url = 'https://openrouter.ai/api/v1/chat/completions';
-
-  // Router tự động chọn model free đang khả dụng trên OpenRouter — tránh phải
-  // tự liệt kê slug model cụ thể (catalog free model đổi/gỡ liên tục, dễ 404/400).
-  // Giữ thêm 1 model free ổn định làm lớp dự phòng trước khi rơi xuống Bedrock.
-  const freeModels = [
-    'openrouter/free',
-    'meta-llama/llama-3.3-70b-instruct:free',
-  ];
-
-  // Delay ngắn giữa các lần thử model để tránh dồn burst request liên tiếp
-  // gây rate-limit dây chuyền trên nhiều model cùng lúc
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const prompt = `Tóm tắt đoạn văn bản sau trong 3-5 câu và phân loại vào một trong các nhóm: [Hợp đồng, Hóa đơn, Báo cáo, Khác]. Bạn BẮT BUỘC chỉ trả về JSON thuần túy, không kèm giải thích, không kèm markdown code block, theo đúng cấu trúc sau:
+Bạn BẮT BUỘC chỉ trả về JSON thuần túy, không kèm giải thích, không kèm markdown code block:
 {
-  "summary": "Nội dung tóm tắt ở đây",
+  "summary": "Nội dung ở đây",
   "category": "Hợp đồng" hoặc "Hóa đơn" hoặc "Báo cáo" hoặc "Khác"
 }
 
 Văn bản cần xử lý:
-${text.slice(0, 10000)}`;
+${truncated}`;
+}
 
+// ── AI HELPERS ──────────────────────────────────────────────────────────────
+async function callOpenRouter(prompt: string, apiKey: string): Promise<{ summary: string; category: string }> {
+  const url = 'https://openrouter.ai/api/v1/chat/completions';
+  const freeModels = ['openrouter/free', 'meta-llama/llama-3.3-70b-instruct:free'];
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
   const lastErrors: string[] = [];
 
   for (const model of freeModels) {
@@ -91,186 +57,220 @@ ${text.slice(0, 10000)}`;
           'HTTP-Referer': 'https://github.com/aws-amplify/amplify-backend',
           'X-Title': 'Smart Document Assistant',
         },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.1,
-        }),
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.1 }),
       });
 
       if (response.status === 429 || response.status === 503) {
-        const msg = `Model ${model} rate-limited (${response.status}). Trying next...`;
-        console.warn(msg);
-        lastErrors.push(msg);
-        await sleep(300); // tránh burst request liên tiếp gây rate-limit dây chuyền
-        continue; // thử model tiếp theo
-      }
-
-      if (response.status === 404) {
-        const msg = `Model ${model} not found (404). Trying next...`;
-        console.warn(msg);
-        lastErrors.push(msg);
+        lastErrors.push(`Model ${model} rate-limited (${response.status})`);
+        await sleep(300);
         continue;
       }
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`OpenRouter API error: ${response.status} - ${errText}`);
-      }
+      if (response.status === 404) { lastErrors.push(`Model ${model} not found`); continue; }
+      if (!response.ok) throw new Error(`OpenRouter ${response.status}: ${await response.text()}`);
 
       const json: any = await response.json();
-      const responseText = json.choices[0].message.content;
-      const cleaned = responseText.replace(/```json\s*|\s*```/g, '').trim();
+      const cleaned = json.choices[0].message.content.replace(/```json\s*|\s*```/g, '').trim();
       console.log(`OpenRouter: success with model ${model}`);
       return JSON.parse(cleaned);
-
     } catch (err: any) {
-      const msg = `Model ${model} failed: ${err.message}`;
-      console.error(msg);
-      lastErrors.push(msg);
-      // Tiếp tục thử model tiếp theo
+      lastErrors.push(`${model}: ${err.message}`);
     }
   }
-
-  throw new Error(`OpenRouter: all models failed.\n${lastErrors.join('\n')}`);
+  throw new Error(`OpenRouter all models failed:\n${lastErrors.join('\n')}`);
 }
 
-// Gọi Bedrock làm giải pháp dự phòng
-async function summarizeAndClassifyWithBedrock(text: string): Promise<{ summary: string; category: string }> {
+async function callBedrock(prompt: string): Promise<{ summary: string; category: string }> {
   console.log('Using Bedrock Fallback (Amazon Nova Lite)...');
-
-  const prompt = `Tóm tắt đoạn văn bản sau trong 3-5 câu và phân loại vào một trong các nhóm: [Hợp đồng, Hóa đơn, Báo cáo, Khác]. Bạn BẮT BUỘC chỉ trả về JSON thuần túy, không kèm giải thích, không kèm markdown code block, theo đúng cấu trúc sau:
-{
-  "summary": "Nội dung tóm tắt ở đây",
-  "category": "Hợp đồng" hoặc "Hóa đơn" hoặc "Báo cáo" hoặc "Khác"
-}
-
-Văn bản cần xử lý:
-${text.slice(0, 10000)}`;
-
-  const requestBody = {
-    messages: [
-      {
-        role: 'user',
-        content: [{ text: prompt }],
-      },
-    ],
-    inferenceConfig: {
-      max_new_tokens: 300,
-      temperature: 0.1,
-    },
-  };
-
   const command = new InvokeModelCommand({
-    // Amazon Nova Lite ở ap-southeast-1 phải gọi qua cross-region inference profile
-    // (không dùng được model ID trần "amazon.nova-lite-v1:0" trực tiếp)
     modelId: 'apac.amazon.nova-lite-v1:0',
     contentType: 'application/json',
     accept: 'application/json',
-    body: JSON.stringify(requestBody),
+    body: JSON.stringify({
+      messages: [{ role: 'user', content: [{ text: prompt }] }],
+      inferenceConfig: { max_new_tokens: 500, temperature: 0.1 },
+    }),
   });
-
   const response = await bedrockClient.send(command);
-  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-  const responseText: string = responseBody?.output?.message?.content?.[0]?.text ?? '';
-  const cleaned = responseText.replace(/```json\s*|\s*```/g, '').trim();
-  return JSON.parse(cleaned);
+  const body = JSON.parse(new TextDecoder().decode(response.body));
+  const text: string = body?.output?.message?.content?.[0]?.text ?? '';
+  return JSON.parse(text.replace(/```json\s*|\s*```/g, '').trim());
 }
 
-// Gọi OpenRouter làm giải pháp chính (fallback sang Bedrock nếu lỗi)
-async function summarizeAndClassify(text: string): Promise<{ summary: string; category: string }> {
+async function analyzeWithAI(text: string, mode: string): Promise<{ summary: string; category: string }> {
+  const prompt = buildPrompt(text, mode);
   if (openrouterApiKey) {
-    try {
-      return await summarizeAndClassifyWithOpenRouter(text, openrouterApiKey);
-    } catch (openrouterErr) {
-      console.error('OpenRouter primary call failed. Attempting fallback to Bedrock...', openrouterErr);
-    }
+    try { return await callOpenRouter(prompt, openrouterApiKey); }
+    catch (e) { console.error('OpenRouter failed, falling back to Bedrock:', e); }
   } else {
-    console.warn('OPENROUTER_API_KEY not configured. Falling back to Bedrock directly.');
+    console.warn('OPENROUTER_API_KEY not set, using Bedrock directly.');
   }
-
-  try {
-    return await summarizeAndClassifyWithBedrock(text);
-  } catch (bedrockErr: any) {
-    console.error('Bedrock fallback also failed:', bedrockErr);
-    throw new Error('AI analysis failed: both OpenRouter and Bedrock unavailable.');
+  try { return await callBedrock(prompt); }
+  catch (e: any) {
+    throw new Error(`AI analysis failed: both OpenRouter and Bedrock unavailable. ${e.message}`);
   }
 }
 
-export const handler = async (event: any) => {
-  console.log('Received SNS Event:', JSON.stringify(event, null, 2));
+// ── DDB HELPERS ─────────────────────────────────────────────────────────────
+async function getDocumentByJobId(jobId: string) {
+  const response = await ddbDocClient.send(new QueryCommand({
+    TableName: documentTableName,
+    IndexName: 'textractJobId-index',
+    KeyConditionExpression: 'textractJobId = :jobId',
+    ExpressionAttributeValues: { ':jobId': jobId },
+  }));
+  return response.Items?.[0] ?? null;
+}
 
+async function getDocumentById(id: string) {
+  const response = await ddbDocClient.send(new GetCommand({
+    TableName: documentTableName,
+    Key: { id },
+  }));
+  return response.Item ?? null;
+}
+
+async function updateDocument(id: string, status: string, extraAttrs: Record<string, any> = {}) {
+  const parts = ['#status = :status'];
+  const names: Record<string, string> = { '#status': 'status' };
+  const values: Record<string, any> = { ':status': status };
+
+  for (const [k, v] of Object.entries(extraAttrs)) {
+    parts.push(`#${k} = :${k}`);
+    names[`#${k}`] = k;
+    values[`:${k}`] = v;
+  }
+
+  await ddbDocClient.send(new UpdateCommand({
+    TableName: documentTableName,
+    Key: { id },
+    UpdateExpression: `SET ${parts.join(', ')}`,
+    ExpressionAttributeNames: names,
+    ExpressionAttributeValues: values,
+  }));
+}
+
+// ── S3 HELPERS ───────────────────────────────────────────────────────────────
+async function readS3Text(key: string): Promise<string> {
+  const response = await s3Client.send(new GetObjectCommand({ Bucket: storageBucketName, Key: key }));
+  const chunks: any[] = [];
+  for await (const chunk of response.Body as any) chunks.push(chunk);
+  return Buffer.concat(chunks).toString('utf-8');
+}
+
+// ── PATH A: SNS Textract callback ────────────────────────────────────────────
+async function handleSnsEvent(event: any) {
   const snsRecord = event.Records[0];
   const message = JSON.parse(snsRecord.Sns.Message);
   const { JobId, Status } = message;
-
-  console.log(`Processing Textract callback. JobId: ${JobId}, Status: ${Status}`);
+  console.log(`[SNS] Textract callback. JobId: ${JobId}, Status: ${Status}`);
 
   const doc = await getDocumentByJobId(JobId);
-  if (!doc) {
-    console.error(`No document found in DynamoDB for Textract JobId: ${JobId}`);
-    return;
-  }
+  if (!doc) { console.error(`No document found for JobId: ${JobId}`); return; }
 
   if (Status !== 'SUCCEEDED') {
-    console.error(`Textract Job ${JobId} failed or returned status: ${Status}`);
     await updateDocument(doc.id, 'error');
     return;
   }
 
   try {
+    // Lấy toàn bộ OCR text (paginated)
     let allText = '';
-    let nextToken: string | undefined = undefined;
-
-    console.log(`Retrieving Textract results for JobId: ${JobId}`);
+    let nextToken: string | undefined;
     do {
-      const result: any = await textractClient.send(new GetDocumentTextDetectionCommand({
-        JobId,
-        NextToken: nextToken,
-      }));
-
+      const result: any = await textractClient.send(new GetDocumentTextDetectionCommand({ JobId, NextToken: nextToken }));
       if (result.Blocks) {
-        const pageText = result.Blocks
-          .filter((b: any) => b.BlockType === 'LINE')
-          .map((b: any) => b.Text)
-          .join('\n');
-        allText += pageText + '\n';
+        allText += result.Blocks.filter((b: any) => b.BlockType === 'LINE').map((b: any) => b.Text).join('\n') + '\n';
       }
       nextToken = result.NextToken;
     } while (nextToken);
 
-    console.log(`OCR complete. Extracted ${allText.length} characters.`);
+    console.log(`[SNS] OCR complete. ${allText.length} characters extracted.`);
 
-    console.log('Invoking AI (OpenRouter with Bedrock Fallback) for analysis...');
-    const aiResult = await summarizeAndClassify(allText);
-
-    const updateAttrs: Record<string, any> = {
-      summary: aiResult.summary,
-      category: aiResult.category,
-    };
-
+    // Lưu text → status = text_extracted, chờ user chọn mode
     if (allText.length > 300000) {
       const identityId = doc.s3Key.split('/')[1];
       const processedS3Key = `processed/${identityId}/${doc.id}-text.txt`;
-
-      console.log(`Extracted text length (${allText.length}) exceeds threshold. Uploading to S3: ${processedS3Key}`);
       await s3Client.send(new PutObjectCommand({
-        Bucket: storageBucketName,
-        Key: processedS3Key,
-        Body: allText,
-        ContentType: 'text/plain; charset=utf-8',
+        Bucket: storageBucketName, Key: processedS3Key,
+        Body: allText, ContentType: 'text/plain; charset=utf-8',
       }));
-
-      updateAttrs.processedS3Key = processedS3Key;
+      await updateDocument(doc.id, 'text_extracted', { processedS3Key });
     } else {
-      updateAttrs.extractedText = allText;
+      await updateDocument(doc.id, 'text_extracted', { extractedText: allText });
     }
 
-    await updateDocument(doc.id, 'done', updateAttrs);
-    console.log(`Document ${doc.id} processed successfully and set to done.`);
-
+    console.log(`[SNS] Document ${doc.id} ready for analysis (text_extracted).`);
   } catch (error: any) {
-    console.error(`Error retrieving or processing results for JobId ${JobId}:`, error);
+    console.error(`[SNS] Error for JobId ${JobId}:`, error);
     await updateDocument(doc.id, 'error');
+  }
+}
+
+// ── PATH B: DynamoDB Stream — user đã chọn analysisMode ─────────────────────
+async function handleDynamoStreamEvent(event: any) {
+  for (const record of event.Records) {
+    if (record.eventName !== 'MODIFY') continue;
+
+    const newImage = record.dynamodb?.NewImage;
+    if (!newImage) continue;
+
+    const id = newImage.id?.S;
+    const status = newImage.status?.S;
+    const analysisMode = newImage.analysisMode?.S;
+
+    // Double-check filter (phòng khi Lambda filter chưa active ngay)
+    if (status !== 'processing' || !analysisMode) continue;
+
+    console.log(`[DDB Stream] Analyzing document ${id} with mode: ${analysisMode}`);
+
+    try {
+      // Lấy full document để có extractedText hoặc processedS3Key
+      const doc = await getDocumentById(id);
+      if (!doc) { console.error(`Document ${id} not found`); continue; }
+
+      // Lấy text từ DB hoặc từ S3 nếu quá dài
+      let text = doc.extractedText ?? '';
+      if (!text && doc.processedS3Key) {
+        console.log(`[DDB Stream] Loading text from S3: ${doc.processedS3Key}`);
+        text = await readS3Text(doc.processedS3Key);
+      }
+      if (!text) {
+        console.error(`[DDB Stream] No text available for document ${id}`);
+        await updateDocument(id, 'error');
+        continue;
+      }
+
+      console.log(`[DDB Stream] Calling AI (mode=${analysisMode}, textLen=${text.length})...`);
+      const aiResult = await analyzeWithAI(text, analysisMode);
+
+      await updateDocument(id, 'done', {
+        summary: aiResult.summary,
+        category: aiResult.category,
+      });
+
+      console.log(`[DDB Stream] Document ${id} analysis complete.`);
+    } catch (error: any) {
+      console.error(`[DDB Stream] Error analyzing document ${id}:`, error);
+      await updateDocument(id, 'error');
+    }
+  }
+}
+
+// ── MAIN HANDLER ─────────────────────────────────────────────────────────────
+export const handler = async (event: any) => {
+  console.log('Lambda B received event:', JSON.stringify(event, null, 2));
+
+  // Phân biệt nguồn event: SNS hay DynamoDB Stream
+  const firstRecord = event.Records?.[0];
+  if (!firstRecord) return;
+
+  if (firstRecord.EventSource === 'aws:sns' || firstRecord.eventSource === 'aws:sns') {
+    // SNS event từ Textract callback
+    await handleSnsEvent(event);
+  } else if (firstRecord.eventSource === 'aws:dynamodb') {
+    // DynamoDB Stream event từ user chọn mode
+    await handleDynamoStreamEvent(event);
+  } else {
+    console.warn('Unknown event source:', firstRecord.EventSource ?? firstRecord.eventSource);
   }
 };
