@@ -94,7 +94,7 @@ const topic = new sns.Topic(backend.stack, 'TextractOcrCompletedTopic', {
 const topicArn = `arn:aws:sns:${region}:${account}:${topicName}`;
 
 // ── TEXTRACT IAM ROLE ──────────────────────────────────────────────────────
-const textractSnsRoleName = 'TextractSnsPublishRole';
+const textractSnsRoleName = `TextractSnsPublishRole-${backend.stack.stackName}`;
 const textractSnsRole = new iam.Role(backend.stack, 'TextractSnsRole', {
   roleName: textractSnsRoleName,
   assumedBy: new iam.ServicePrincipal('textract.amazonaws.com'),
@@ -214,66 +214,40 @@ backend.lambdaBTextractResult.resources.lambda.addToRolePolicy(s3Policy);
 // Enable DynamoDB Stream trên Document table để Lambda B tự động trigger khi
 // user update analysisMode + status = processing (sau khi chọn mode phân tích).
 
-// Access underlying nested stack của data để tìm CFN resources
-const dataStack = backend.data.resources.cfnResources.cfnGraphqlApi.stack;
+// Cấp quyền Lambda B đọc DynamoDB Stream
+backend.lambdaBTextractResult.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: [
+    'dynamodb:GetRecords',
+    'dynamodb:GetShardIterator', 
+    'dynamodb:DescribeStream',
+    'dynamodb:ListStreams',
+  ],
+  resources: [
+    `${documentTable.tableArn}/stream/*`,
+  ],
+}));
 
-// Tìm tất cả CfnTable trong data nested stack
-const allTables = dataStack.node.findAll().filter(
-  (child) => child.node.id.includes('Table') && cdk.CfnResource.isCfnResource(child)
+// Thêm DynamoDB Stream event source cho Lambda B
+// Amplify Gen2 table object có thể dùng trực tiếp làm DynamoEventSource
+backend.lambdaBTextractResult.resources.lambda.addEventSource(
+  new lambdaEventSources.DynamoEventSource(documentTable as any, {
+    startingPosition: lambda.StartingPosition.LATEST,
+    batchSize: 1,
+    bisectBatchOnError: true,
+    retryAttempts: 2,
+    // Filter: chỉ process MODIFY events với status=processing và có analysisMode
+    filters: [
+      lambda.FilterCriteria.filter({
+        eventName: lambda.FilterRule.isEqual('MODIFY'),
+        dynamodb: {
+          NewImage: {
+            status: { S: lambda.FilterRule.isEqual('processing') },
+            analysisMode: { S: lambda.FilterRule.exists() },
+          },
+        },
+      }),
+    ],
+  })
 );
 
-console.log('Found tables:', allTables.map(t => t.node.id));
-
-// Tìm Document table bằng cách check logical ID hoặc physical properties
-// Amplify Gen2 tạo table với pattern: amplifyDataModel<ModelName><Hash>
-const documentCfnTable = allTables.find((table) => {
-  const logicalId = (table as any).logicalId || '';
-  return logicalId.includes('Document') && !logicalId.includes('UserQuota');
-}) as cdk.CfnResource | undefined;
-
-if (documentCfnTable) {
-  console.log('Found Document table:', documentCfnTable.node.id);
-  
-  // Enable DynamoDB Stream
-  documentCfnTable.addPropertyOverride('StreamSpecification', {
-    StreamViewType: 'NEW_AND_OLD_IMAGES',
-  });
-
-  // Cấp quyền Lambda B đọc stream
-  backend.lambdaBTextractResult.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
-    actions: [
-      'dynamodb:GetRecords',
-      'dynamodb:GetShardIterator', 
-      'dynamodb:DescribeStream',
-      'dynamodb:ListStreams',
-    ],
-    resources: [
-      `${documentTable.tableArn}/stream/*`,
-    ],
-  }));
-
-  // Thêm DynamoDB Stream event source
-  backend.lambdaBTextractResult.resources.lambda.addEventSource(
-    new lambdaEventSources.DynamoEventSource(documentTable as any, {
-      startingPosition: lambda.StartingPosition.LATEST,
-      batchSize: 1,
-      bisectBatchOnError: true,
-      retryAttempts: 2,
-      filters: [
-        lambda.FilterCriteria.filter({
-          eventName: lambda.FilterRule.isEqual('MODIFY'),
-          dynamodb: {
-            NewImage: {
-              status: { S: lambda.FilterRule.isEqual('processing') },
-              analysisMode: { S: lambda.FilterRule.exists() },
-            },
-          },
-        }),
-      ],
-    })
-  );
-  
-  console.log('DynamoDB Stream configured successfully');
-} else {
-  console.error('Document table CFN resource not found!');
-}
+console.log('[INFO] DynamoDB Stream event source added to Lambda B');

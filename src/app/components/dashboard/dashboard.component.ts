@@ -418,6 +418,48 @@ interface ConfirmState {
     </div>
   </div>
 
+  <!-- ANALYSIS MODE POPUP -->
+  <div class="mode-bg" *ngIf="analysisDoc()" (click)="dismissAnalysisPrompt()" role="dialog" aria-modal="true">
+    <div class="mode-card" (click)="$event.stopPropagation()">
+      
+      <div class="mode-header">
+        <div class="mode-file-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="mode-file-info">
+          <div class="mode-file-name">{{ analysisDoc()?.fileName }}</div>
+          <div class="mode-file-meta">{{ analysisDoc()?.fileType | uppercase }} · {{ formatFileSize(analysisDoc()?.fileSize) }}</div>
+        </div>
+      </div>
+
+      <h3 class="mode-title">Chọn chế độ phân tích</h3>
+      <p class="mode-sub">Văn bản đã được trích xuất. Hãy chọn cách bạn muốn xử lý nội dung này.</p>
+
+      <div class="mode-options">
+        <button *ngFor="let opt of analysisOptions" 
+          class="mode-option"
+          [class.mode-option-selected]="selectedMode() === opt.value"
+          (click)="selectedMode.set(opt.value)">
+          <span class="mode-option-icon">{{ opt.icon }}</span>
+          <div class="mode-option-body">
+            <div class="mode-option-label">{{ opt.label }}</div>
+            <div class="mode-option-desc">{{ opt.desc }}</div>
+          </div>
+          <svg *ngIf="selectedMode() === opt.value" class="mode-option-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+      </div>
+
+      <div class="mode-actions">
+        <button class="mode-cancel" (click)="dismissAnalysisPrompt()">Hủy</button>
+        <button class="mode-confirm" (click)="confirmAnalysisMode()" [disabled]="!selectedMode() || submittingMode()">
+          <span *ngIf="submittingMode()" class="row-spinner" style="border-top-color:#fff;border-color:rgba(255,255,255,0.3);width:11px;height:11px"></span>
+          <span>{{ submittingMode() ? 'Đang xử lý...' : 'Xác nhận' }}</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
 </div>
   `,
   styles: [`
