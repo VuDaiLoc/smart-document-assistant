@@ -8,7 +8,6 @@ import * as cdk from 'aws-cdk-lib';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 
 const backend = defineBackend({
   auth,
@@ -210,51 +209,22 @@ const s3Policy = new iam.PolicyStatement({
 backend.lambdaATrigger.resources.lambda.addToRolePolicy(s3Policy);
 backend.lambdaBTextractResult.resources.lambda.addToRolePolicy(s3Policy);
 
-// ── DYNAMODB STREAM → LAMBDA B ─────────────────────────────────────────────
-// Enable stream trên Document table để Lambda B nhận event khi user set
-// analysisMode + status = processing (sau khi chọn mode phân tích).
-
-// Override CfnTable để bật StreamSpecification
-const documentCfnTable = documentTable.node.defaultChild as cdk.CfnResource;
-documentCfnTable.addPropertyOverride('StreamSpecification', {
-  StreamViewType: 'NEW_AND_OLD_IMAGES',
+// ── LAMBDA B FUNCTION URL ──────────────────────────────────────────────────
+// Tạo Function URL cho Lambda B để frontend có thể gọi trực tiếp sau khi
+// user chọn analysis mode (thay vì dùng DynamoDB Stream trigger phức tạp).
+// AuthType = AWS_IAM: chỉ authenticated Cognito users mới gọi được.
+const lambdaBFnUrl = backend.lambdaBTextractResult.resources.lambda.addFunctionUrl({
+  authType: lambda.FunctionUrlAuthType.AWS_IAM,
+  cors: {
+    allowedOrigins: ['*'], // Production nên restrict theo domain thật
+    allowedMethods: [lambda.HttpMethod.POST],
+    allowedHeaders: ['content-type', 'authorization'],
+    maxAge: cdk.Duration.hours(1),
+  },
 });
 
-// Cấp quyền Lambda B đọc DynamoDB Stream
-backend.lambdaBTextractResult.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
-  actions: [
-    'dynamodb:GetRecords',
-    'dynamodb:GetShardIterator',
-    'dynamodb:DescribeStream',
-    'dynamodb:ListStreams',
-  ],
-  resources: [
-    `${documentTable.tableArn}/stream/*`,
-  ],
-}));
-
-// Thêm DynamoDB Stream event source cho Lambda B
-// startingPosition = LATEST: chỉ xử lý record mới từ khi Lambda được deploy
-const lambdaBFn = backend.lambdaBTextractResult.resources.lambda;
-lambdaBFn.addEventSource(new lambdaEventSources.DynamoEventSource(
-  documentTable as any,
-  {
-    startingPosition: lambda.StartingPosition.LATEST,
-    batchSize: 1,          // xử lý từng document một để tránh timeout
-    bisectBatchOnError: true,
-    retryAttempts: 2,
-    // Chỉ trigger khi có record MODIFY với status chuyển sang processing
-    // (filter giảm invocations không cần thiết)
-    filters: [
-      lambda.FilterCriteria.filter({
-        eventName: lambda.FilterRule.isEqual('MODIFY'),
-        dynamodb: {
-          NewImage: {
-            status: { S: lambda.FilterRule.isEqual('processing') },
-            analysisMode: { S: lambda.FilterRule.exists() },
-          },
-        },
-      }),
-    ],
-  }
-));
+// Export Function URL ra output để frontend dùng
+new cdk.CfnOutput(backend.stack, 'LambdaBFunctionUrl', {
+  value: lambdaBFnUrl.url,
+  description: 'Lambda B Function URL for triggering AI analysis',
+});
