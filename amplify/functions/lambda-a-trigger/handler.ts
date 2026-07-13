@@ -4,9 +4,7 @@ import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3
 import { TextractClient, StartDocumentTextDetectionCommand } from '@aws-sdk/client-textract';
 import mammoth from 'mammoth';
 import officeParser from 'officeparser';
-import * as pdfParse from 'pdf-parse';
-// pdf-parse là CommonJS module, gọi như function trực tiếp
-const parsePdf: (buffer: Buffer) => Promise<{ text: string }> = (pdfParse as any).default ?? pdfParse;
+import pdfParse from 'pdf-parse';
 
 const ddbClient = new DynamoDBClient({});
 const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
@@ -118,7 +116,7 @@ export const handler = async (event: any) => {
           console.log(`Trying direct PDF text extraction for: ${key}`);
           try {
             const buffer = await downloadS3Object(bucketName, key);
-            const pdfData = await parsePdf(buffer);
+            const pdfData = await pdfParse(buffer);
             const extractedText = pdfData.text?.trim() ?? '';
 
             // Nếu extract được đủ text → lưu thẳng, không cần Textract
