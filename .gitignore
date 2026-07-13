@@ -24,6 +24,8 @@ amplifyconfiguration*
 npm-debug.log*
 yarn-error.log*
 *.log
+/log/
+errors.txt
 
 # ── OS files ───────────────────────────────────────────────────────────────
 .DS_Store
