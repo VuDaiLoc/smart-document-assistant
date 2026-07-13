@@ -19,24 +19,21 @@ function buildPrompt(text: string, mode: string): string {
   const truncated = text.slice(0, 10000);
 
   const modeInstructions: Record<string, string> = {
-    summary_detailed: `Tóm tắt chi tiết đoạn văn bản sau trong 6-10 câu, bao gồm các ý chính, chi tiết quan trọng và kết luận. Sau đó phân loại tài liệu.`,
-    summary_short: `Tóm tắt ngắn gọn đoạn văn bản sau trong 2-3 câu, chỉ nêu ý chính nhất. Sau đó phân loại tài liệu.`,
-    key_points: `Trích xuất 3-5 điểm chính quan trọng nhất từ văn bản sau dưới dạng danh sách gạch đầu dòng. Gộp tất cả vào trường "summary". Sau đó phân loại tài liệu.`,
-    classify_only: `Đọc văn bản sau và chỉ cần xác định phân loại tài liệu. Đặt "summary" là một câu mô tả ngắn về tài liệu.`,
-    extract_text: `Phân loại tài liệu dựa trên nội dung văn bản sau. Chỉ trả về category.`,
-  };
+  summary_detailed: `Tóm tắt 6-10 câu: ý chính, chi tiết, kết luận. Phân loại.`,
+  summary_short: `Tóm tắt 2-3 câu, ý chính. Phân loại.`,
+  key_points: `3-5 điểm chính dạng bullet, gộp vào "summary". Phân loại.`,
+  classify_only: `Phân loại. "summary": mô tả 1 câu.`,
+  extract_text: `Phân loại tài liệu.`,
+};
 
   const instruction = modeInstructions[mode] ?? modeInstructions['summary_detailed'];
 
   return `${instruction}
 
-Bạn BẮT BUỘC chỉ trả về JSON thuần túy, không kèm giải thích, không kèm markdown code block:
-{
-  "summary": "Nội dung ở đây",
-  "category": "Hợp đồng" hoặc "Hóa đơn" hoặc "Báo cáo" hoặc "Khác"
-}
+JSON thuần (không markdown):
+{"summary":"nội dung","category":"Hợp đồng|Hóa đơn|Báo cáo|Khác"}
 
-Văn bản cần xử lý:
+Văn bản:
 ${truncated}`;
 }
 
