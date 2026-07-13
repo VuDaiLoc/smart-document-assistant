@@ -324,7 +324,7 @@ interface ConfirmState {
         <!-- Sidebar -->
         <div class="modal-sidebar">
           <div class="msec">
-            <div class="msec-label">Tóm tắt (AI)</div>
+            <div class="msec-label">{{ previewDoc()?.analysisMode === 'extract_text' ? 'Văn bản trích xuất' : 'Tóm tắt (AI)' }}</div>
             <div *ngIf="previewDoc()?.status === 'processing'" class="skeleton skeleton-text-sm"></div>
             <p *ngIf="previewDoc()?.status === 'uploaded'" class="msec-pending">Đang chuẩn bị xử lý...</p>
             <div *ngIf="previewDoc()?.status === 'text_extracted'" class="text-extracted-prompt">
@@ -354,14 +354,6 @@ interface ConfirmState {
             <div *ngIf="previewDoc()?.status === 'processing'" class="skeleton skeleton-badge"></div>
             <span *ngIf="previewDoc()?.status === 'done' && previewDoc()?.category" class="cat-badge cat-badge-lg">{{ previewDoc()?.category }}</span>
             <span *ngIf="previewDoc()?.status === 'done' && !previewDoc()?.category" class="td-dim">Chưa xác định</span>
-          </div>
-
-          <div class="msec msec-scroll">
-            <div class="msec-label">Văn bản trích xuất</div>
-            <div *ngIf="previewDoc()?.status === 'processing'" class="skeleton skeleton-block"></div>
-            <pre *ngIf="previewDoc()?.status === 'done' && previewDoc()?.extractedText" class="extracted-text">{{ previewDoc()?.extractedText }}</pre>
-            <p *ngIf="previewDoc()?.status === 'done' && previewDoc()?.processedS3Key && !previewDoc()?.extractedText" class="msec-muted">Văn bản quá dài, đã lưu trên S3. Tải về để xem đầy đủ.</p>
-            <p *ngIf="previewDoc()?.status === 'done' && !previewDoc()?.extractedText && !previewDoc()?.processedS3Key" class="msec-muted">Không tìm thấy nội dung.</p>
           </div>
         </div>
       </div>
@@ -1091,6 +1083,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { value: 'summary_short',    icon: '⚡', label: 'Tóm tắt ngắn gọn', desc: 'Tóm tắt nhanh 2–3 câu, chỉ nêu điểm quan trọng nhất' },
     { value: 'key_points',       icon: '🔑', label: 'Trích xuất điểm chính', desc: 'Liệt kê 3–5 điểm chính dưới dạng danh sách gạch đầu dòng' },
     { value: 'classify_only',    icon: '🏷️', label: 'Chỉ phân loại', desc: 'Xác định loại tài liệu: Hợp đồng, Hóa đơn, Báo cáo hoặc Khác' },
+    { value: 'extract_text',     icon: '📄', label: 'Trích xuất văn bản', desc: 'Hiển thị toàn bộ văn bản đã trích xuất từ tài liệu' },
   ];
 
   // Search + Filter
