@@ -94,7 +94,7 @@ const topic = new sns.Topic(backend.stack, 'TextractOcrCompletedTopic', {
 const topicArn = `arn:aws:sns:${region}:${account}:${topicName}`;
 
 // ── TEXTRACT IAM ROLE ──────────────────────────────────────────────────────
-const textractSnsRoleName = `TextractSnsPublishRole-${backend.stack.stackName}`;
+const textractSnsRoleName = 'TextractSnsPublishRole';
 const textractSnsRole = new iam.Role(backend.stack, 'TextractSnsRole', {
   roleName: textractSnsRoleName,
   assumedBy: new iam.ServicePrincipal('textract.amazonaws.com'),
